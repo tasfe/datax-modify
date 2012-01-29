@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="test"/>
+	<classpathentry kind="lib" path="libs/ant-contrib-1.0b3.jar"/>
+	<classpathentry kind="lib" path="libs/commons-dbcp-1.4.jar"/>
+	<classpathentry kind="lib" path="libs/commons-io-2.0.1.jar"/>
+	<classpathentry kind="lib" path="libs/commons-lang-2.4.jar"/>
+	<classpathentry kind="lib" path="libs/commons-logging-1.1.1.jar"/>
+	<classpathentry kind="lib" path="libs/commons-pool-1.5.4.jar"/>
+	<classpathentry kind="lib" path="libs/dom4j-2.0.0-ALPHA-2.jar"/>
+	<classpathentry kind="lib" path="libs/hadoop-0.19.2-core.jar"/>
+	<classpathentry kind="lib" path="libs/hadoop-0.20.jar"/>
+	<classpathentry kind="lib" path="libs/hbase-0.90.2.jar"/>
+	<classpathentry kind="lib" path="libs/jaxen-1.1-beta-6.jar"/>
+	<classpathentry kind="lib" path="libs/junit-4.4.jar"/>
+	<classpathentry kind="lib" path="libs/libcharset.so"/>
+	<classpathentry kind="lib" path="libs/libhadoop.so"/>
+	<classpathentry kind="lib" path="libs/libiconv.so.2"/>
+	<classpathentry kind="lib" path="libs/log4j-1.2.16.jar"/>
+	<classpathentry kind="lib" path="libs/mysql-connector-java-5.1.18-bin.jar"/>
+	<classpathentry kind="lib" path="libs/ojdbc14_10.2.0.4.jar"/>
+	<classpathentry kind="lib" path="libs/slf4j-api-1.4.3.jar"/>
+	<classpathentry kind="lib" path="libs/slf4j-log4j12-1.4.3.jar"/>
+	<classpathentry kind="lib" path="libs/sqljdbc4.jar"/>
+	<classpathentry kind="lib" path="libs/zookeeper-3.3.3.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="output" path="build"/>
+</classpath>
