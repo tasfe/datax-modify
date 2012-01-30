@@ -9,26 +9,33 @@
 
 package com.taobao.datax.engine.schedule;
 
-import com.taobao.datax.common.constants.ExitStatus;
-import com.taobao.datax.common.exception.ExceptionTracker;
-import com.taobao.datax.common.exception.DataExchangeException;
-import com.taobao.datax.common.plugin.PluginParam;
-import com.taobao.datax.common.plugin.Pluginable;
-import com.taobao.datax.common.plugin.Reader;
-import com.taobao.datax.common.plugin.Writer;
-import com.taobao.datax.engine.conf.*;
-import com.taobao.datax.engine.plugin.BufferedLineExchanger;
-import com.taobao.datax.engine.storage.Storage;
-import com.taobao.datax.engine.storage.StoragePool;
-import com.taobao.datax.engine.tools.JobConfGenDriver;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
+
+import com.taobao.datax.common.constants.ExitStatus;
+import com.taobao.datax.common.exception.DataExchangeException;
+import com.taobao.datax.common.exception.ExceptionTracker;
+import com.taobao.datax.common.plugin.PluginParam;
+import com.taobao.datax.common.plugin.Pluginable;
+import com.taobao.datax.common.plugin.Reader;
+import com.taobao.datax.common.plugin.Writer;
+import com.taobao.datax.engine.conf.EngineConf;
+import com.taobao.datax.engine.conf.JobConf;
+import com.taobao.datax.engine.conf.JobPluginConf;
+import com.taobao.datax.engine.conf.ParseXMLUtil;
+import com.taobao.datax.engine.conf.PluginConf;
+import com.taobao.datax.engine.plugin.BufferedLineExchanger;
+import com.taobao.datax.engine.storage.Storage;
+import com.taobao.datax.engine.storage.StoragePool;
+import com.taobao.datax.engine.tools.JobConfGenDriver;
+import com.taobao.datax.plugins.reader.mysqlreader.MysqlReader;
+import com.taobao.datax.plugins.writer.mysqlwriter.MysqlWriter;
 
 /**
  * Core class of DataX, schedule {@link Reader} & {@link Writer}.
@@ -52,11 +59,9 @@ public class Engine {
 	/**
 	 * Constructor for {@link Engine}
 	 * 
-	 * @param engineConf
-	 *            Configuration for {@link Engine}
+	 * @param engineConf Configuration for {@link Engine}
 	 * 
-	 * @param pluginReg
-	 *            Configurations for {@link Pluginable}
+	 * @param pluginReg Configurations for {@link Pluginable}
 	 * 
 	 * */
 	public Engine(EngineConf engineConf, Map<String, PluginConf> pluginReg) {
@@ -70,33 +75,30 @@ public class Engine {
 
 	/**
 	 * Start a DataX job.
-	 *
-	 * @param jobConf
-	 *            Configuration for the DataX Job.
+	 * 
+	 * @param jobConf Configuration for the DataX Job.
 	 * 
 	 * @return 0 for success, others for failure.
-	 *
+	 * 
 	 * @throws Exception
-       *
-       */
+	 * 
+	 */
 
- 	public int start(JobConf jobConf) throws Exception {
+	public int start(JobConf jobConf) throws Exception {
 		logger.info('\n' + engineConf.toString() + '\n');
 		logger.info('\n' + jobConf.toString() + '\n');
 		logger.info("DataX startups .");
 
 		StoragePool storagePool = new StoragePool(jobConf, engineConf, PERIOD);
-		NamedThreadPoolExecutor readerPool = initReaderPool(jobConf,
-				storagePool);
-		List<NamedThreadPoolExecutor> writerPool = initWriterPool(jobConf,
-				storagePool);
+		NamedThreadPoolExecutor readerPool = initReaderPool(jobConf, storagePool);
+		List<NamedThreadPoolExecutor> writerPool = initWriterPool(jobConf, storagePool);
 
 		logger.info("DataX starts to exchange data .");
 		readerPool.shutdown();
 		for (NamedThreadPoolExecutor dp : writerPool) {
 			dp.shutdown();
 		}
-		
+
 		int sleepCnt = 0;
 		int retcode = 0;
 
@@ -109,13 +111,11 @@ public class Engine {
 
 			boolean writerAllFinish = true;
 
-			NamedThreadPoolExecutor[] dps = writerPool
-					.toArray(new NamedThreadPoolExecutor[0]);
+			NamedThreadPoolExecutor[] dps = writerPool.toArray(new NamedThreadPoolExecutor[0]);
 			/* check each DumpPool */
 			for (NamedThreadPoolExecutor dp : dps) {
 				if (!readerFinish && dp.isTerminated()) {
-					logger.error(String.format("DataX Writer %s failed .",
-							dp.getName()));
+					logger.error(String.format("DataX Writer %s failed .", dp.getName()));
 					writerPool.remove(dp);
 				} else if (!dp.isTerminated()) {
 					writerAllFinish = false;
@@ -129,8 +129,7 @@ public class Engine {
 
 				logger.info("DataX Writers post work begins .");
 				for (NamedThreadPoolExecutor dp : writerPool) {
-					dp.getParam().setOppositeMetaData(
-							readerPool.getParam().getMyMetaData());
+					dp.getParam().setOppositeMetaData(readerPool.getParam().getMyMetaData());
 					dp.doPost();
 				}
 				logger.info("DataX Writers post work ends .");
@@ -151,16 +150,12 @@ public class Engine {
 			if (sleepCnt % PERIOD == 0) {
 				/* reader&writer count num of thread */
 				StringBuilder sb = new StringBuilder();
-				sb.append(String.format("ReaderPool %s: Active Threads %d .",
-						readerPool.getName(), readerPool.getActiveCount()));
+				sb.append(String.format("ReaderPool %s: Active Threads %d .", readerPool.getName(), readerPool.getActiveCount()));
 				logger.info(sb.toString());
 
 				sb.setLength(0);
 				for (NamedThreadPoolExecutor perWriterPool : writerPool) {
-					sb.append(String.format(
-							"WriterPool %s: Active Threads %d .",
-							perWriterPool.getName(),
-							perWriterPool.getActiveCount()));
+					sb.append(String.format("WriterPool %s: Active Threads %d .", perWriterPool.getName(), perWriterPool.getActiveCount()));
 					logger.info(sb.toString());
 					sb.setLength(0);
 				}
@@ -172,8 +167,7 @@ public class Engine {
 
 		sb.append(storagePool.getTotalStat());
 		long discardLine = this.writerMonitorPool.getDiscardLine();
-		sb.append(String.format("%-26s: %19d\n", "Total discarded records",
-				discardLine));
+		sb.append(String.format("%-26s: %19d\n", "Total discarded records", discardLine));
 
 		logger.info(sb.toString());
 
@@ -188,8 +182,7 @@ public class Engine {
 			long lineTx = Long.parseLong(lineCounts[1]);
 			if (total != -1 && total != lineTx) {
 				writePartlyFailed = true;
-				logger.error("Writer partly failed, for " + total + "!="
-						+ lineTx);
+				logger.error("Writer partly failed, for " + total + "!=" + lineTx);
 			}
 			total = lineTx;
 		}
@@ -199,14 +192,12 @@ public class Engine {
 	/**
 	 * configure log4j environment.
 	 * 
-	 * @param jobId
-	 *            DataX job id.
+	 * @param jobId DataX job id.
 	 * 
 	 * */
 	public static void confLog(String jobId) {
 		java.util.Calendar c = java.util.Calendar.getInstance();
-		java.text.SimpleDateFormat f = new java.text.SimpleDateFormat(
-				"yyyy-MM-dd");
+		java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd");
 		String logDir = "logs/" + f.format(c.getTime());
 		System.setProperty("log.dir", logDir);
 		f = new java.text.SimpleDateFormat("HHmmss");
@@ -215,25 +206,21 @@ public class Engine {
 		PropertyConfigurator.configure("conf/log4j.properties");
 	}
 
-	private NamedThreadPoolExecutor initReaderPool(JobConf jobConf,
-			StoragePool sp) throws Exception {
+	private NamedThreadPoolExecutor initReaderPool(JobConf jobConf, StoragePool sp) throws Exception {
 
 		JobPluginConf readerJobConf = jobConf.getReaderConf();
 		PluginConf readerConf = pluginReg.get(readerJobConf.getName());
 
 		if (readerConf.getPath() == null) {
-			readerConf.setPath(engineConf.getPluginRootPath() + "reader/"
-					+ readerConf.getName());
+			readerConf.setPath(engineConf.getPluginRootPath() + "reader/" + readerConf.getName());
 		}
 
-		logger.info(String.format("DataX Reader %s try to load path %s .",
-				readerConf.getName(), readerConf.getPath()));
-		JarLoader jarLoader = new JarLoader(
-				new String[] { readerConf.getPath() });
-		Class<?> myClass = jarLoader.loadClass(readerConf.getClassName());
+		logger.info(String.format("DataX Reader %s try to load path %s .", readerConf.getName(), readerConf.getPath()));
+		// JarLoader jarLoader = new JarLoader(
+		// new String[] { readerConf.getPath() });
+		// Class<?> myClass = jarLoader.loadClass(readerConf.getClassName());
 
-		ReaderWorker readerWorkerForPreAndPost = new ReaderWorker(readerConf,
-				myClass);
+		ReaderWorker readerWorkerForPreAndPost = new ReaderWorker(readerConf, MysqlReader.class);
 		PluginParam sparam = jobConf.getReaderConf().getPluginParams();
 
 		readerWorkerForPreAndPost.setParam(sparam);
@@ -247,31 +234,22 @@ public class Engine {
 		logger.info("DataX Reader prepare work ends .");
 
 		logger.info("DataX Reader split work begins .");
-		List<PluginParam> readerSplitParams = readerWorkerForPreAndPost
-				.doSplit(sparam);
-		logger.info(String.format(
-				"DataX Reader splits this job into %d sub-jobs",
-				readerSplitParams.size()));
+		List<PluginParam> readerSplitParams = readerWorkerForPreAndPost.doSplit(sparam);
+		logger.info(String.format("DataX Reader splits this job into %d sub-jobs", readerSplitParams.size()));
 		logger.info("DataX Reader split work ends .");
 
 		int concurrency = readerJobConf.getConcurrency();
 		if (concurrency <= 0 || concurrency > MAX_CONCURRENCY) {
-			throw new IllegalArgumentException(String.format(
-					"Reader concurrency set to be %d, make sure it must be between [%d, %d] .",
-					concurrency, 1, MAX_CONCURRENCY));
+			throw new IllegalArgumentException(String.format("Reader concurrency set to be %d, make sure it must be between [%d, %d] .", concurrency, 1, MAX_CONCURRENCY));
 		}
 
-		concurrency = Math.min(concurrency,
-				readerSplitParams.size());
+		concurrency = Math.min(concurrency, readerSplitParams.size());
 		if (concurrency <= 0) {
 			concurrency = 1;
 		}
 		readerJobConf.setConcurrency(concurrency);
 
-		NamedThreadPoolExecutor readerPool = new NamedThreadPoolExecutor(
-				readerJobConf.getId(), readerJobConf.getConcurrency(),
-				readerJobConf.getConcurrency(), 1L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+		NamedThreadPoolExecutor readerPool = new NamedThreadPoolExecutor(readerJobConf.getId(), readerJobConf.getConcurrency(), readerJobConf.getConcurrency(), 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
 
 		readerPool.setPostWorker(readerWorkerForPreAndPost);
 		readerPool.setParam(sparam);
@@ -280,11 +258,9 @@ public class Engine {
 
 		logger.info("DataX Reader starts to read data .");
 		for (PluginParam param : readerSplitParams) {
-			ReaderWorker readerWorker = new ReaderWorker(readerConf, myClass);
+			ReaderWorker readerWorker = new ReaderWorker(readerConf, MysqlReader.class);
 			readerWorker.setParam(param);
-			readerWorker.setLineSender(new BufferedLineExchanger(null, sp
-					.getStorageForReader(), this.engineConf
-					.getStorageBufferSize()));
+			readerWorker.setLineSender(new BufferedLineExchanger(null, sp.getStorageForReader(), this.engineConf.getStorageBufferSize()));
 			readerPool.execute(readerWorker);
 			readerMonitorPool.monitor(readerWorker);
 		}
@@ -292,26 +268,20 @@ public class Engine {
 		return readerPool;
 	}
 
-	private List<NamedThreadPoolExecutor> initWriterPool(JobConf jobConf,
-			StoragePool sp) throws Exception {
+	private List<NamedThreadPoolExecutor> initWriterPool(JobConf jobConf, StoragePool sp) throws Exception {
 		List<NamedThreadPoolExecutor> writerPoolList = new ArrayList<NamedThreadPoolExecutor>();
 		List<JobPluginConf> writerJobConfs = jobConf.getWriterConfs();
 		for (JobPluginConf dpjc : writerJobConfs) {
 			PluginConf writerConf = pluginReg.get(dpjc.getName());
 			if (writerConf.getPath() == null) {
-				writerConf.setPath(engineConf.getPluginRootPath() + "writer/"
-						+ writerConf.getName());
+				writerConf.setPath(engineConf.getPluginRootPath() + "writer/" + writerConf.getName());
 			}
 
-			logger.info(String.format(
-					"DataX Writer %s try to load path %s .",
-					writerConf.getName(), writerConf.getPath()));
-			JarLoader jarLoader = new JarLoader(
-					new String[] { writerConf.getPath() });
-			Class<?> myClass = jarLoader.loadClass(writerConf.getClassName());
+			logger.info(String.format("DataX Writer %s try to load path %s .", writerConf.getName(), writerConf.getPath()));
+			// JarLoader jarLoader = new JarLoader(new String[] { writerConf.getPath() });
+			// Class<?> myClass = jarLoader.loadClass(writerConf.getClassName());
 
-			WriterWorker writerWorkerForPreAndPost = new WriterWorker(
-					writerConf, myClass);
+			WriterWorker writerWorkerForPreAndPost = new WriterWorker(writerConf, MysqlWriter.class);
 
 			PluginParam writerParam = dpjc.getPluginParams();
 			writerWorkerForPreAndPost.setParam(writerParam);
@@ -320,37 +290,27 @@ public class Engine {
 			logger.info("DataX Writer prepare work begins .");
 			int code = writerWorkerForPreAndPost.prepare(writerParam);
 			if (code != 0) {
-				throw new DataExchangeException(
-						"DataX Writer prepare work failed!");
+				throw new DataExchangeException("DataX Writer prepare work failed!");
 			}
 			logger.info("DataX Writer prepare work ends .");
 
 			logger.info("DataX Writer split work begins .");
-			List<PluginParam> writerSplitParams = writerWorkerForPreAndPost
-					.doSplit(writerParam);
-			logger.info(String.format(
-					"DataX Writer splits this job into %d sub-jobs .",
-					writerSplitParams.size()));
+			List<PluginParam> writerSplitParams = writerWorkerForPreAndPost.doSplit(writerParam);
+			logger.info(String.format("DataX Writer splits this job into %d sub-jobs .", writerSplitParams.size()));
 			logger.info("DataX Writer split work ends .");
 
 			int concurrency = dpjc.getConcurrency();
 			if (concurrency <= 0 || concurrency > MAX_CONCURRENCY) {
-				throw new IllegalArgumentException(String.format(
-						"Writer concurrency set to be %d, make sure it must be between [%d, %d] .",
-						concurrency, 1, MAX_CONCURRENCY));
+				throw new IllegalArgumentException(String.format("Writer concurrency set to be %d, make sure it must be between [%d, %d] .", concurrency, 1, MAX_CONCURRENCY));
 			}
-	
-			concurrency = Math.min(dpjc.getConcurrency(),
-					writerSplitParams.size());
+
+			concurrency = Math.min(dpjc.getConcurrency(), writerSplitParams.size());
 			if (concurrency <= 0) {
 				concurrency = 1;
 			}
 			dpjc.setConcurrency(concurrency);
 
-			NamedThreadPoolExecutor writerPool = new NamedThreadPoolExecutor(
-					dpjc.getName() + "-" + dpjc.getId(), dpjc.getConcurrency(),
-					dpjc.getConcurrency(), 1L, TimeUnit.SECONDS,
-					new LinkedBlockingQueue<Runnable>());
+			NamedThreadPoolExecutor writerPool = new NamedThreadPoolExecutor(dpjc.getName() + "-" + dpjc.getId(), dpjc.getConcurrency(), dpjc.getConcurrency(), 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
 
 			writerPool.setPostWorker(writerWorkerForPreAndPost);
 			writerPool.setParam(writerParam);
@@ -360,12 +320,9 @@ public class Engine {
 			logger.info("DataX Writer starts to write data .");
 
 			for (PluginParam pp : writerSplitParams) {
-				WriterWorker writerWorker = new WriterWorker(writerConf,
-						myClass);
+				WriterWorker writerWorker = new WriterWorker(writerConf, MysqlWriter.class);
 				writerWorker.setParam(pp);
-				writerWorker.setLineReceiver(new BufferedLineExchanger(sp
-						.getStorageForWriter(dpjc.getId()), null,
-						this.engineConf.getStorageBufferSize()));
+				writerWorker.setLineReceiver(new BufferedLineExchanger(sp.getStorageForWriter(dpjc.getId()), null, this.engineConf.getStorageBufferSize()));
 				writerPool.execute(writerWorker);
 				writerMonitorPool.monitor(writerWorker);
 			}
@@ -374,15 +331,13 @@ public class Engine {
 	}
 
 	/**
-	 * Program entry </br>> NOTE: The DataX Process exists code </br> exit with
-	 * 0: Job succeed </br> exit with 1: Job failed </br> exit with 2: Job
-	 * failed, e.g. connetion interrupted, if we try to rerun it in a few
-	 * seconds, it may succeed.
+	 * Program entry </br>> NOTE: The DataX Process exists code </br> exit with 0: Job succeed </br> exit with 1: Job failed </br> exit with 2: Job failed, e.g. connetion interrupted, if we try to rerun it in a few seconds, it may succeed.
 	 * 
-	 *
-     * @param args  cmd arguments
-     *
-     * @throws Exception*/
+	 * 
+	 * @param args cmd arguments
+	 * 
+	 * @throws Exception
+	 */
 	public static void main(String[] args) throws Exception {
 		String jobDescFile = null;
 		if (args.length < 1) {
