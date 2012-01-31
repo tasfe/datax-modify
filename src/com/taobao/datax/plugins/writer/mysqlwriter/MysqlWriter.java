@@ -213,14 +213,22 @@ public class MysqlWriter extends Writer {
 			stmt = connection.createStatement();
 			Line line = null;
 			StringBuilder sql = new StringBuilder("insert into person values");
+			int i = 1;
+			int len = sql.length();
 			while ((line = receiver.getFromReader()) != null) {
 				if (!sql.toString().endsWith("values")) {
 					sql.append(",");
 				}
 				sql.append("(" + line.getField(0) + ", '" + line.getField(1) + "','" + line.getField(2) + "','" + line.getField(3) + "','" + line.getField(4) + "')");
+				if (i++ % 10000 == 0) {
+					logger.info(sql.toString());
+					stmt.execute(sql.toString());
+					sql.delete(len, sql.length());
+				}
 			}
-			System.out.println(sql.toString());
-			stmt.execute(sql.toString());
+			if (sql.length() > len) {
+				stmt.execute(sql.toString());
+			}
 			/** 增加数据 **/
 			// StringBuilder sql = new StringBuilder("insert into person values");
 			// int len = sql.length();
