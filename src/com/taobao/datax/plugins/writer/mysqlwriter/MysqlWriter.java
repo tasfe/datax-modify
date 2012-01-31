@@ -354,7 +354,6 @@ public class MysqlWriter extends Writer {
 					rowCounter.add(matcher.group());
 				}
 			}
-
 			if (!StringUtils.isBlank(sb.toString())) {
 
 				if (rowCounter.size() > 32) {
@@ -387,6 +386,14 @@ public class MysqlWriter extends Writer {
 			}
 		}
 		return PluginStatus.SUCCESS.value();
+	}
+
+	@Override
+	public List<PluginParam> split(PluginParam param) {
+		MysqlWriterSplitter spliter = new MysqlWriterSplitter();
+		spliter.setParam(param);
+		spliter.init();
+		return spliter.split();
 	}
 
 	private Properties genProperties() {
