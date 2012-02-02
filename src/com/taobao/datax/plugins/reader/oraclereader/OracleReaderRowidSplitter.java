@@ -7,17 +7,9 @@
  * 
  */
 
-
 package com.taobao.datax.plugins.reader.oraclereader;
 
-import com.taobao.datax.common.exception.ExceptionTracker;
-import com.taobao.datax.common.plugin.PluginParam;
-import com.taobao.datax.common.plugin.Splitter;
-import com.taobao.datax.common.util.SplitUtils;
-import com.taobao.datax.plugins.common.DBSource;
-import com.taobao.datax.plugins.common.DBUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
+import static java.text.MessageFormat.format;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -27,8 +19,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.text.MessageFormat.format;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
 
+import com.taobao.datax.common.exception.ExceptionTracker;
+import com.taobao.datax.common.plugin.PluginParam;
+import com.taobao.datax.common.plugin.Splitter;
+import com.taobao.datax.common.util.SplitUtils;
+import com.taobao.datax.plugins.common.DBSource;
+import com.taobao.datax.plugins.common.DBUtils;
 
 public class OracleReaderRowidSplitter extends Splitter {
 
@@ -54,79 +53,22 @@ public class OracleReaderRowidSplitter extends Splitter {
 
 	private static final String SQL_ROWID_BETWEEN_PATTERN = " rowid between chartorowid(''{0}'') and chartorowid(''{1}'')";
 
-	private static final String QUERY_PARTITIONS_PATTERN = "select SUBOBJECT_NAME from dba_objects where"
-			+ " OWNER=upper(''{0}'') and OBJECT_NAME=upper(''{1}'')";
+	private static final String QUERY_PARTITIONS_PATTERN = "select SUBOBJECT_NAME from dba_objects where" + " OWNER=upper(''{0}'') and OBJECT_NAME=upper(''{1}'')";
 
-	private static String ORACLE_ROWID_SPLIT_PATTERN = "select "
-			+ "dbms_rowid.rowid_create(1, B.data_object_id, A.relative_fno, A.min_block, 0) min_rowid, "
-			+ "dbms_rowid.rowid_create(1, B.data_object_id, A.relative_fno, A.max_block+blocks-1, 10000) max_rowid "
-			+ "from ( select  relative_fno,  block_id, "
-			+ "min(block_id) over (partition by relative_fno) min_block, "
-			+ "max(block_id) over (partition by relative_fno) max_block, "
-			+ "blocks,  sum(blocks) over (partition by relative_fno) sum_blocks "
-			+ "from ( select  relative_fno,  block_id,  blocks  "
-			+ "from sys.dba_extents  where segment_name = ''{1}'' "
-			+ "and owner = ''{0}'' order by block_id ) ) A,"
-			+ "(select data_object_id from sys.DBA_objects "
-			+ "where owner = ''{0}'' and object_name = ''{1}'') B "
+	private static String ORACLE_ROWID_SPLIT_PATTERN = "select " + "dbms_rowid.rowid_create(1, B.data_object_id, A.relative_fno, A.min_block, 0) min_rowid, " + "dbms_rowid.rowid_create(1, B.data_object_id, A.relative_fno, A.max_block+blocks-1, 10000) max_rowid "
+			+ "from ( select  relative_fno,  block_id, " + "min(block_id) over (partition by relative_fno) min_block, " + "max(block_id) over (partition by relative_fno) max_block, " + "blocks,  sum(blocks) over (partition by relative_fno) sum_blocks "
+			+ "from ( select  relative_fno,  block_id,  blocks  " + "from sys.dba_extents  where segment_name = ''{1}'' " + "and owner = ''{0}'' order by block_id ) ) A," + "(select data_object_id from sys.DBA_objects " + "where owner = ''{0}'' and object_name = ''{1}'') B "
 			+ "where A.block_id = A.max_block and B.data_object_id IS NOT NULL";
 
-	private static final String ORACLE_ROWID_NTILE_SPLIT_PATTERN = "select "
-			+ "min(chartorowid(min_rowid)) min_rowid, "
-			+ "max(chartorowid(max_rowid)) max_rowid "
-			+ "from (select T.min_rowid, "
-			+ "T.max_rowid, "
-			+ "T.Relative_Fno, "
-			+ "NTILE(200) over(order by T.Relative_Fno, chartorowid(T.min_rowid)) group_id "
-			+ "from (select dbms_rowid.rowid_create(1, "
-			+ "B.data_object_id, "
-			+ "A.relative_fno, "
-			+ "A.block_id, "
-			+ "0) min_rowid, "
-			+ "dbms_rowid.rowid_create(1, "
-			+ "B.data_object_id, "
-			+ "A.relative_fno, "
-			+ "A.block_id + A.blocks - 1, "
-			+ "10000) max_rowid, "
-			+ "A.Relative_Fno "
-			+ "from (select relative_fno, block_id, blocks "
-			+ "from sys.dba_extents "
-			+ "where segment_name = ''{1}'' "
-			+ "and owner = ''{0}'' "
-			+ "order by block_id) A, "
-			+ "(select data_object_id "
-			+ "from sys.DBA_objects where owner = ''{0}'' and object_name = ''{1}'') B "
-			+ "where B.data_object_id IS NOT NULL) T) " + "group by group_id";
+	private static final String ORACLE_ROWID_NTILE_SPLIT_PATTERN = "select " + "min(chartorowid(min_rowid)) min_rowid, " + "max(chartorowid(max_rowid)) max_rowid " + "from (select T.min_rowid, " + "T.max_rowid, " + "T.Relative_Fno, "
+			+ "NTILE(200) over(order by T.Relative_Fno, chartorowid(T.min_rowid)) group_id " + "from (select dbms_rowid.rowid_create(1, " + "B.data_object_id, " + "A.relative_fno, " + "A.block_id, " + "0) min_rowid, " + "dbms_rowid.rowid_create(1, " + "B.data_object_id, " + "A.relative_fno, "
+			+ "A.block_id + A.blocks - 1, " + "10000) max_rowid, " + "A.Relative_Fno " + "from (select relative_fno, block_id, blocks " + "from sys.dba_extents " + "where segment_name = ''{1}'' " + "and owner = ''{0}'' " + "order by block_id) A, " + "(select data_object_id "
+			+ "from sys.DBA_objects where owner = ''{0}'' and object_name = ''{1}'') B " + "where B.data_object_id IS NOT NULL) T) " + "group by group_id";
 
-	private static final String ORACLE_ROWID_PARTITION_SPLIT_PATTERN = "select dbms_rowid.rowid_create(1, "
-			+ "B.data_object_id, "
-			+ "A.relative_fno, "
-			+ "A.min_block, "
-			+ "0) min_rowid, "
-			+ "dbms_rowid.rowid_create(1, "
-			+ "B.data_object_id, "
-			+ "A.relative_fno, "
-			+ "A.max_block + blocks - 1, "
-			+ "10000) max_rowid "
-			+ "from (select relative_fno, "
-			+ "block_id, "
-			+ "min(block_id) over(partition by relative_fno) min_block, "
-			+ "max(block_id) over(partition by relative_fno) max_block, "
-			+ "blocks, "
-			+ "sum(blocks) over(partition by relative_fno) sum_blocks "
-			+ "from (select relative_fno, block_id, blocks "
-			+ "from sys.dba_extents "
-			+ "where segment_name = ''{1}'' "
-			+ "and owner = ''{0}'' "
-			+ "and PARTITION_NAME= ''{2}'' "
-			+ "order by block_id)) A, "
-			+ "(select data_object_id "
-			+ "from sys.DBA_objects "
-			+ "where owner = ''{0}'' "
-			+ "and object_name = ''{1}'' "
-			+ "and SUBOBJECT_NAME = ''{2}'') B "
-			+ "where A.block_id = A.max_block "
-			+ "and B.data_object_id IS NOT NULL";
+	private static final String ORACLE_ROWID_PARTITION_SPLIT_PATTERN = "select dbms_rowid.rowid_create(1, " + "B.data_object_id, " + "A.relative_fno, " + "A.min_block, " + "0) min_rowid, " + "dbms_rowid.rowid_create(1, " + "B.data_object_id, " + "A.relative_fno, " + "A.max_block + blocks - 1, "
+			+ "10000) max_rowid " + "from (select relative_fno, " + "block_id, " + "min(block_id) over(partition by relative_fno) min_block, " + "max(block_id) over(partition by relative_fno) max_block, " + "blocks, " + "sum(blocks) over(partition by relative_fno) sum_blocks "
+			+ "from (select relative_fno, block_id, blocks " + "from sys.dba_extents " + "where segment_name = ''{1}'' " + "and owner = ''{0}'' " + "and PARTITION_NAME= ''{2}'' " + "order by block_id)) A, " + "(select data_object_id " + "from sys.DBA_objects " + "where owner = ''{0}'' "
+			+ "and object_name = ''{1}'' " + "and SUBOBJECT_NAME = ''{2}'') B " + "where A.block_id = A.max_block " + "and B.data_object_id IS NOT NULL";
 
 	enum RowidKey {
 		tableName(0), tableMinRowid(1), tableMaxRowid(2);
@@ -148,11 +90,9 @@ public class OracleReaderRowidSplitter extends Splitter {
 		this.columns = this.param.getValue(ParamKey.columns, "*");
 		this.where = this.param.getValue(ParamKey.where, "");
 		this.schema = this.param.getValue(ParamKey.schema);
-		this.rowidSplitMode = this.param.getIntValue(
-				ParamKey.splitMod, this.rowidSplitMode);
+		this.rowidSplitMode = this.param.getIntValue(ParamKey.splitMod, this.rowidSplitMode);
 
-		this.dbPoolKey = this.param
-				.getValue(OracleReader.ORACLE_READER_DB_POOL_KEY);
+		this.dbPoolKey = this.param.getValue(OracleReader.ORACLE_READER_DB_POOL_KEY);
 		this.connection = DBSource.getConnection(this.dbPoolKey);
 
 		return 0;
@@ -174,18 +114,14 @@ public class OracleReaderRowidSplitter extends Splitter {
 			this.logger.info(String.format("OracleReader analyze %d partitions .", partitions.size()));
 			if (null == partitions || 0 == partitions.size()) {
 				if (1 == this.rowidSplitMode) {
-					sql = format(ORACLE_ROWID_SPLIT_PATTERN,
-							schema.toUpperCase(), tablet.toUpperCase());
+					sql = format(ORACLE_ROWID_SPLIT_PATTERN, schema.toUpperCase(), tablet.toUpperCase());
 				} else {
-					sql = format(ORACLE_ROWID_NTILE_SPLIT_PATTERN,
-							schema.toUpperCase(), tablet.toUpperCase());
+					sql = format(ORACLE_ROWID_NTILE_SPLIT_PATTERN, schema.toUpperCase(), tablet.toUpperCase());
 				}
 				rowids.addAll(this.analyzeRowids(tablet, sql));
 			} else {
 				for (String partition : partitions) {
-					sql = format(ORACLE_ROWID_PARTITION_SPLIT_PATTERN,
-							schema.toUpperCase(), tablet.toUpperCase(),
-							partition.toUpperCase());
+					sql = format(ORACLE_ROWID_PARTITION_SPLIT_PATTERN, schema.toUpperCase(), tablet.toUpperCase(), partition.toUpperCase());
 					rowids.addAll(this.analyzeRowids(tablet, sql));
 				}
 			}
@@ -208,11 +144,9 @@ public class OracleReaderRowidSplitter extends Splitter {
 			if (null == perRowid.get(RowidKey.tableMinRowid)) {
 				sql = this.genNoRowidSql(perRowid.get(RowidKey.tableName));
 			} else {
-				sql = this.genRowidSql(perRowid.get(RowidKey.tableName),
-						perRowid.get(RowidKey.tableMinRowid),
-						perRowid.get(RowidKey.tableMaxRowid));
+				sql = this.genRowidSql(perRowid.get(RowidKey.tableName), perRowid.get(RowidKey.tableMinRowid), perRowid.get(RowidKey.tableMaxRowid));
 			}
-			//logger.info(sql);
+			// logger.info(sql);
 			param.putValue(ParamKey.sql, sql);
 			params.add(param);
 		}
@@ -223,10 +157,8 @@ public class OracleReaderRowidSplitter extends Splitter {
 	private List<String> analyzePartitions(String table) {
 		List<String> partitions = new ArrayList<String>();
 
-		String partitionsSql = format(QUERY_PARTITIONS_PATTERN,
-				this.schema.toUpperCase(), table.toUpperCase());
-		this.logger.info(String.format("Analyze Partition query: %s .",
-				partitionsSql));
+		String partitionsSql = format(QUERY_PARTITIONS_PATTERN, this.schema.toUpperCase(), table.toUpperCase());
+		this.logger.info(String.format("Analyze Partition query: %s .", partitionsSql));
 
 		ResultSet rs = null;
 		try {
@@ -263,8 +195,7 @@ public class OracleReaderRowidSplitter extends Splitter {
 				do {
 					String minRowid = rs.getString(1);
 					String maxRowid = rs.getString(2);
-					if (StringUtils.isBlank(minRowid)
-							|| StringUtils.isBlank(maxRowid)) {
+					if (StringUtils.isBlank(minRowid) || StringUtils.isBlank(maxRowid)) {
 						continue;
 					}
 					Map<RowidKey, String> perRowid = new HashMap<RowidKey, String>();
@@ -288,11 +219,9 @@ public class OracleReaderRowidSplitter extends Splitter {
 		String sql;
 
 		if (StringUtils.isBlank(this.where)) {
-			sql = format(SQL_WITHOUT_WHERE_PATTERN, this.columns, this.schema
-					+ "." + table);
+			sql = format(SQL_WITHOUT_WHERE_PATTERN, this.columns, this.schema + "." + table);
 		} else {
-			sql = format(SQL_WITH_WHERE_PATTERN, this.columns, this.schema
-					+ "." + table, this.where);
+			sql = format(SQL_WITH_WHERE_PATTERN, this.columns, this.schema + "." + table, this.where);
 		}
 		return sql;
 	}
@@ -301,13 +230,9 @@ public class OracleReaderRowidSplitter extends Splitter {
 		String sql = "";
 		String tail = format(SQL_ROWID_BETWEEN_PATTERN, minRowid, maxRowid);
 		if (StringUtils.isBlank(this.where)) {
-			sql = format(SQL_WITHOUT_WHERE_PATTERN, this.columns, this.schema
-					+ "." + table)
-					+ " where " + tail;
+			sql = format(SQL_WITHOUT_WHERE_PATTERN, this.columns, this.schema + "." + table) + " where " + tail;
 		} else {
-			sql = format(SQL_WITH_WHERE_PATTERN, this.columns, this.schema
-					+ "." + table, this.where)
-					+ " and " + tail;
+			sql = format(SQL_WITH_WHERE_PATTERN, this.columns, this.schema + "." + table, this.where) + " and " + tail;
 		}
 		return sql;
 	}

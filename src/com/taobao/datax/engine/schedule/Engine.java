@@ -34,7 +34,7 @@ import com.taobao.datax.engine.plugin.BufferedLineExchanger;
 import com.taobao.datax.engine.storage.Storage;
 import com.taobao.datax.engine.storage.StoragePool;
 import com.taobao.datax.engine.tools.JobConfGenDriver;
-import com.taobao.datax.plugins.reader.mysqlreader.MysqlReader;
+import com.taobao.datax.plugins.reader.oraclereader.OracleReader;
 import com.taobao.datax.plugins.writer.mysqlwriter.MysqlWriter;
 
 /**
@@ -220,7 +220,7 @@ public class Engine {
 		// new String[] { readerConf.getPath() });
 		// Class<?> myClass = jarLoader.loadClass(readerConf.getClassName());
 
-		ReaderWorker readerWorkerForPreAndPost = new ReaderWorker(readerConf, MysqlReader.class);
+		ReaderWorker readerWorkerForPreAndPost = new ReaderWorker(readerConf, OracleReader.class);
 		PluginParam sparam = jobConf.getReaderConf().getPluginParams();
 
 		readerWorkerForPreAndPost.setParam(sparam);
@@ -258,7 +258,7 @@ public class Engine {
 
 		logger.info("DataX Reader starts to read data .");
 		for (PluginParam param : readerSplitParams) {
-			ReaderWorker readerWorker = new ReaderWorker(readerConf, MysqlReader.class);
+			ReaderWorker readerWorker = new ReaderWorker(readerConf, OracleReader.class);
 			readerWorker.setParam(param);
 			readerWorker.setLineSender(new BufferedLineExchanger(null, sp.getStorageForReader(), this.engineConf.getStorageBufferSize()));
 			readerPool.execute(readerWorker);

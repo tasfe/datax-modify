@@ -27,7 +27,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
 import com.taobao.datax.common.exception.DataExchangeException;
-import com.taobao.datax.common.plugin.Line;
 import com.taobao.datax.common.plugin.LineReceiver;
 import com.taobao.datax.common.plugin.PluginParam;
 import com.taobao.datax.common.plugin.PluginStatus;
@@ -206,47 +205,31 @@ public class MysqlWriter extends Writer {
 
 	@Override
 	public int startWrite(LineReceiver receiver) {
-		Statement stmt = null;
+		com.mysql.jdbc.Statement stmt = null;
 		try {
 
 			this.connection = DBSource.getConnection(this.sourceUniqKey);
-			stmt = connection.createStatement();
-			Line line = null;
-			StringBuilder sql = new StringBuilder("insert into person values");
-			int i = 1;
-			int len = sql.length();
-			while ((line = receiver.getFromReader()) != null) {
-				if (!sql.toString().endsWith("values")) {
-					sql.append(",");
-				}
-				sql.append("(" + line.getField(0) + ", '" + line.getField(1) + "','" + line.getField(2) + "','" + line.getField(3) + "','" + line.getField(4) + "')");
-				if (i++ % 10000 == 0) {
-					logger.info(sql.toString());
-					stmt.execute(sql.toString());
-					sql.delete(len, sql.length());
-				}
-			}
-			if (sql.length() > len) {
-				stmt.execute(sql.toString());
-			}
-			/** 增加数据 **/
-			// StringBuilder sql = new StringBuilder("insert into person values");
-			// int len = sql.length();
-			// while ((line = receiver.getFromReader()) != null) {
-			// for (int i = 1; i < 1000001; i++) {
-			// if (!sql.toString().endsWith("values")) {
-			// sql.append(",");
-			// }
-			// sql.append("(" + i + ",'北京=北京','北京=北京','北京=北京','北京=北京')");
-			// System.out.println(i + "|");
-			// if (i % 10000 == 0) {
-			// System.out.println(sql.toString());
-			// stmt.execute(sql.toString());
-			// System.out.println("len = " + len);
-			// sql.delete(len, sql.length());
-			// }
-			// }
-			// }
+			stmt = (com.mysql.jdbc.Statement) ((org.apache.commons.dbcp.DelegatingConnection) this.connection).getInnermostDelegate().createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+			/* set max count */
+			this.logger.info(String.format("Config max_error_count: set max_error_count=%d", MAX_ERROR_COUNT));
+			stmt.executeUpdate(String.format("set max_error_count=%d;", MAX_ERROR_COUNT));
+
+			/* set connect encoding */
+			this.logger.info(String.format("Config encoding %s .", this.encoding));
+			for (String sql : this.makeLoadEncoding(encoding))
+				stmt.execute(sql);
+
+			/* load data begin */
+			String loadSql = this.makeLoadSql();
+			// this.logger.info(String.format("Load sql: %s.", visualSql(loadSql)));
+
+			MysqlWriterInputStreamAdapter localInputStream = new MysqlWriterInputStreamAdapter(receiver, this);
+			stmt.setLocalInfileInputStream(localInputStream);
+			stmt.executeUpdate("LOAD DATA LOCAL INFILE 'bogusFileName' INTO TABLE tb_shortusers_sina");
+			// String streamData = "1\tabcd\t\t\t\tdd\n2\tefgh\n3\tijkl";
+			// stmt.executeUpdate(visualSql(loadSql));
+			this.lineCounter = localInputStream.getLineNumber();
+
 			this.logger.info("DataX write to mysql ends .");
 
 			return PluginStatus.SUCCESS.value();
@@ -362,6 +345,7 @@ public class MysqlWriter extends Writer {
 					rowCounter.add(matcher.group());
 				}
 			}
+
 			if (!StringUtils.isBlank(sb.toString())) {
 
 				if (rowCounter.size() > 32) {
