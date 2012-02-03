@@ -9,29 +9,22 @@
 
 package com.taobao.datax.plugins.writer.mysqlwriter;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
-
 import com.taobao.datax.common.exception.DataExchangeException;
 import com.taobao.datax.common.plugin.LineReceiver;
 import com.taobao.datax.common.plugin.PluginParam;
 import com.taobao.datax.common.plugin.PluginStatus;
 import com.taobao.datax.common.plugin.Writer;
 import com.taobao.datax.plugins.common.DBSource;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MysqlWriter extends Writer {
 	private static List<String> encodingConfigs = null;
@@ -105,12 +98,15 @@ public class MysqlWriter extends Writer {
 		this.colorder = param.getValue(ParamKey.colorder, "");
 		this.pre = param.getValue(ParamKey.pre, "");
 		this.post = param.getValue(ParamKey.post, "");
-		this.encoding = param.getValue(ParamKey.encoding, "UTF8").toLowerCase();
+		this.encoding = param.getValue(ParamKey.encoding, "UTF8")
+				.toLowerCase();
 		this.limit = param.getDoubleValue(ParamKey.limit, 0);
 		this.set = param.getValue(ParamKey.set, "");
-		this.replace = param.getBoolValue(ParamKey.replace, false) ? "REPLACE" : "IGNORE";
+		this.replace = param.getBoolValue(ParamKey.replace, false) ? "REPLACE"
+				: "IGNORE";
 
-		this.sourceUniqKey = DBSource.genKey(this.getClass(), host, port, dbname);
+		this.sourceUniqKey = DBSource.genKey(this.getClass(), host, port,
+				dbname);
 
 		if (!StringUtils.isBlank(this.set)) {
 			this.set = "set " + this.set;
@@ -136,10 +132,13 @@ public class MysqlWriter extends Writer {
 		try {
 			this.connection = DBSource.getConnection(this.sourceUniqKey);
 
-			stmt = this.connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+			stmt = this.connection.createStatement(
+					ResultSet.TYPE_SCROLL_INSENSITIVE,
+					ResultSet.CONCUR_UPDATABLE);
 
 			for (String subSql : this.pre.split(";")) {
-				this.logger.info(String.format("Excute prepare sql %s .", subSql));
+				this.logger.info(String.format("Excute prepare sql %s .",
+						subSql));
 				stmt.execute(subSql);
 			}
 
@@ -166,17 +165,22 @@ public class MysqlWriter extends Writer {
 			return PluginStatus.SUCCESS.value();
 
 		/*
-		 * add by bazhen.csy if (null == this.connection) { throw new DataExchangeException(String.format( "MysqlWriter connect %s failed in post work .", this.host)); }
+		 * add by bazhen.csy if (null == this.connection) { throw new
+		 * DataExchangeException(String.format(
+		 * "MysqlWriter connect %s failed in post work .", this.host)); }
 		 */
 
 		Statement stmt = null;
 		try {
 			this.connection = DBSource.getConnection(this.sourceUniqKey);
 
-			stmt = this.connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+			stmt = this.connection.createStatement(
+					ResultSet.TYPE_SCROLL_INSENSITIVE,
+					ResultSet.CONCUR_UPDATABLE);
 
 			for (String subSql : this.post.split(";")) {
-				this.logger.info(String.format("Excute prepare sql %s .", subSql));
+				this.logger.info(String.format("Excute prepare sql %s .",
+						subSql));
 				stmt.execute(subSql);
 			}
 
@@ -209,25 +213,33 @@ public class MysqlWriter extends Writer {
 		try {
 
 			this.connection = DBSource.getConnection(this.sourceUniqKey);
-			stmt = (com.mysql.jdbc.Statement) ((org.apache.commons.dbcp.DelegatingConnection) this.connection).getInnermostDelegate().createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE);
+			stmt = (com.mysql.jdbc.Statement) ((org.apache.commons.dbcp.DelegatingConnection) this.connection)
+					.getInnermostDelegate().createStatement(
+							ResultSet.TYPE_SCROLL_INSENSITIVE,
+							ResultSet.CONCUR_UPDATABLE);
+
 			/* set max count */
-			this.logger.info(String.format("Config max_error_count: set max_error_count=%d", MAX_ERROR_COUNT));
-			stmt.executeUpdate(String.format("set max_error_count=%d;", MAX_ERROR_COUNT));
+			this.logger.info(String.format(
+					"Config max_error_count: set max_error_count=%d",
+					MAX_ERROR_COUNT));
+			stmt.executeUpdate(String.format("set max_error_count=%d;",
+					MAX_ERROR_COUNT));
 
 			/* set connect encoding */
-			this.logger.info(String.format("Config encoding %s .", this.encoding));
+			this.logger.info(String.format("Config encoding %s .",
+					this.encoding));
 			for (String sql : this.makeLoadEncoding(encoding))
 				stmt.execute(sql);
 
 			/* load data begin */
 			String loadSql = this.makeLoadSql();
-			// this.logger.info(String.format("Load sql: %s.", visualSql(loadSql)));
+			this.logger
+					.info(String.format("Load sql: %s.", visualSql(loadSql)));
 
-			MysqlWriterInputStreamAdapter localInputStream = new MysqlWriterInputStreamAdapter(receiver, this);
+			MysqlWriterInputStreamAdapter localInputStream = new MysqlWriterInputStreamAdapter(
+					receiver, this);
 			stmt.setLocalInfileInputStream(localInputStream);
-			stmt.executeUpdate("LOAD DATA LOCAL INFILE 'bogusFileName' INTO TABLE tb_shortusers_sina");
-			// String streamData = "1\tabcd\t\t\t\tdd\n2\tefgh\n3\tijkl";
-			// stmt.executeUpdate(visualSql(loadSql));
+			stmt.executeUpdate(visualSql(loadSql));
 			this.lineCounter = localInputStream.getLineNumber();
 
 			this.logger.info("DataX write to mysql ends .");
@@ -251,7 +263,8 @@ public class MysqlWriter extends Writer {
 	}
 
 	private String quoteData(String data) {
-		if (data == null || data.trim().startsWith("@") || data.trim().startsWith("`"))
+		if (data == null || data.trim().startsWith("@")
+				|| data.trim().startsWith("`"))
 			return data;
 		return ('`' + data + '`');
 	}
@@ -280,7 +293,8 @@ public class MysqlWriter extends Writer {
 	}
 
 	private String makeLoadSql() {
-		String sql = "LOAD DATA LOCAL INFILE '`bazhen.csy.hedgehog`' " + this.replace + " INTO TABLE ";
+		String sql = "LOAD DATA LOCAL INFILE '`bazhen.csy.hedgehog`' "
+				+ this.replace + " INTO TABLE ";
 		// fetch table
 		sql += this.quoteData(this.table);
 		// fetch charset
@@ -327,7 +341,9 @@ public class MysqlWriter extends Writer {
 			Pattern p = Pattern.compile(PATTERN);
 			Set<String> rowCounter = new HashSet<String>();
 
-			stmt = this.connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+			stmt = this.connection.createStatement(
+					ResultSet.TYPE_SCROLL_INSENSITIVE,
+					ResultSet.CONCUR_READ_ONLY);
 			ResultSet rs;
 
 			sb.setLength(0);
@@ -337,7 +353,8 @@ public class MysqlWriter extends Writer {
 			rs = stmt.executeQuery("SHOW WARNINGS;");
 			while (rs.next()) {
 				if (warnCnts++ < 32) {
-					sb.append(rs.getString(1)).append(" ").append(rs.getInt(2)).append(" ").append(rs.getString(3)).append("\n");
+					sb.append(rs.getString(1)).append(" ").append(rs.getInt(2))
+							.append(" ").append(rs.getString(3)).append("\n");
 				}
 
 				Matcher matcher = p.matcher(rs.getString(3));
@@ -354,16 +371,23 @@ public class MysqlWriter extends Writer {
 				this.logger.warn(sb);
 
 				if (this.limit >= 1 && rowCounter.size() >= this.limit) {
-					this.logger.error(String.format("%d rows data failed in loading.", rowCounter.size()));
+					this.logger.error(String.format(
+							"%d rows data failed in loading.",
+							rowCounter.size()));
 					return PluginStatus.FAILURE.value();
-				} else if (this.limit > 0 && this.limit < 1 && this.lineCounter > 0) {
-					double rate = (double) rowCounter.size() / (double) this.lineCounter;
+				} else if (this.limit > 0 && this.limit < 1
+						&& this.lineCounter > 0) {
+					double rate = (double) rowCounter.size()
+							/ (double) this.lineCounter;
 					if (rate >= this.limit) {
-						this.logger.error(String.format("%.1f%% data failed in loading.", rate * 100));
+						this.logger.error(String.format(
+								"%.1f%% data failed in loading.", rate * 100));
 						return PluginStatus.FAILURE.value();
 					}
 				} else {
-					this.logger.warn(String.format("MysqlWriter found %d rows data format error .", rowCounter.size()));
+					this.logger.warn(String.format(
+							"MysqlWriter found %d rows data format error .",
+							rowCounter.size()));
 					// this.getMonitor().setFailedLines(rowCounter.size());
 				}
 			}
@@ -380,18 +404,11 @@ public class MysqlWriter extends Writer {
 		return PluginStatus.SUCCESS.value();
 	}
 
-	@Override
-	public List<PluginParam> split(PluginParam param) {
-		MysqlWriterSplitter spliter = new MysqlWriterSplitter();
-		spliter.setParam(param);
-		spliter.init();
-		return spliter.split();
-	}
-
 	private Properties genProperties() {
 		Properties p = new Properties();
 		p.setProperty("driverClassName", this.DRIVER_NAME);
-		p.setProperty("url", String.format("jdbc:mysql://%s:%s/%s", this.host, this.port, this.dbname));
+		p.setProperty("url", String.format("jdbc:mysql://%s:%s/%s", this.host,
+				this.port, this.dbname));
 		p.setProperty("username", this.username);
 		p.setProperty("password", this.password);
 		p.setProperty("maxActive", String.valueOf(this.concurrency + 2));
